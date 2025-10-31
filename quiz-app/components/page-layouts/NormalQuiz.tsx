@@ -7,6 +7,7 @@ import { CATEGORIES, type QuizCategory } from '@enrolla/shared'
 import { API_ENDPOINTS } from '@/lib/api'
 import { useToast } from '@/components/common-ui/Toast'
 import { getUserAnswerTextFrom, getCorrectAnswerTextFrom } from '@/lib/answers.utils'
+import { shuffleArray } from '@/lib/shuffle'
 
 export default function NormalQuiz() {
 	const {
@@ -22,6 +23,7 @@ export default function NormalQuiz() {
 		setAnswer,
 		setSubmitting,
 		setResult,
+		reset,
 	} = useQuizStore()
 
 	const { addToast } = useToast()
@@ -46,7 +48,7 @@ export default function NormalQuiz() {
 				clearTimeout(abortTimer)
 				if (!response.ok) throw new Error('Failed to fetch quiz')
 				const quizPayload = await response.json()
-				if (!isCancelled) setQuiz(quizPayload)
+				if (!isCancelled) setQuiz(shuffleArray(quizPayload))
 				if (!loadedToastShownRef.current) {
 					addToast('Quiz Loaded Successfuly', 'success', 2000)
 					loadedToastShownRef.current = true
@@ -198,7 +200,8 @@ export default function NormalQuiz() {
 
 	async function handleTryAgain() {
 		try {
-			setResult(null)
+			// reset global store to clear previous answers and result
+			reset()
 			setSubmitting(false)
 			setError(null)
 			setElapsedSeconds(0)
@@ -206,10 +209,10 @@ export default function NormalQuiz() {
 			const response = await fetch(API_ENDPOINTS.quiz, { cache: 'no-store' })
 			if (response.ok) {
 				const payload = await response.json()
-				setQuiz(payload)
-				addToast('Quiz reloaded', 'success', 1500)
+				setQuiz(shuffleArray(payload))
 			}
 			setStarted(true)
+			addToast('New quiz started', 'success', 1500)
 		} catch (error: unknown) {
 			const errorMessage = error instanceof Error ? error.message : 'Failed to reset quiz'
 			setError(errorMessage)
@@ -284,7 +287,7 @@ export default function NormalQuiz() {
                     </div>
                 </div>
             )}
-            {filteredQuiz && started && (
+            {filteredQuiz && started && !result && (
 				<form onSubmit={onSubmit} className="space-y-6">
 					{filteredQuiz.map((question) => (
 						<div key={question.id} className="rounded border bg-white p-4 shadow-sm">

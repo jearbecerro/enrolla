@@ -7,6 +7,7 @@ import { CATEGORIES, type QuizCategory, SECONDS_PER_QUESTION } from '@enrolla/sh
 import { API_ENDPOINTS } from '@/lib/api'
 import { useToast } from '@/components/common-ui/Toast'
 import { getUserAnswerTextFrom, getCorrectAnswerTextFrom } from '@/lib/answers.utils'
+import { shuffleArray } from '@/lib/shuffle'
 
 export default function TimeQuiz() {
 	const {
@@ -64,7 +65,7 @@ export default function TimeQuiz() {
 				clearTimeout(abortTimer)
 				if (!response.ok) throw new Error('Failed to fetch quiz')
 				const quizPayload = await response.json()
-				if (!isCancelled) setQuiz(quizPayload)
+				if (!isCancelled) setQuiz(shuffleArray(quizPayload))
 				if (!loadedToastShownRef.current) {
 					addToast('Quiz Loaded Successfuly', 'success', 2000)
 					loadedToastShownRef.current = true
@@ -288,7 +289,7 @@ export default function TimeQuiz() {
             const response = await fetch(API_ENDPOINTS.quiz, { cache: 'no-store' })
             if (response.ok) {
                 const payload = await response.json()
-                setQuiz(payload)
+                setQuiz(shuffleArray(payload))
                 addToast('Quiz reloaded', 'success', 1500)
             }
             setStarted(true)
