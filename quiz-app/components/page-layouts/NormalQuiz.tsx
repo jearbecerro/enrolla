@@ -5,6 +5,8 @@ import type { BackendQuestion } from '@enrolla/shared'
 import { useQuizStore } from '@/lib/store'
 import { CATEGORIES, type QuizCategory } from '@enrolla/shared'
 import { API_ENDPOINTS } from '@/lib/api'
+import { useToast } from '@/components/common-ui/Toast'
+import { getUserAnswerTextFrom, getCorrectAnswerTextFrom } from '@/lib/answers.utils'
 
 export default function NormalQuiz() {
 	const {
@@ -21,6 +23,9 @@ export default function NormalQuiz() {
 		setSubmitting,
 		setResult,
 	} = useQuizStore()
+
+	const { addToast } = useToast()
+	const loadedToastShownRef = useRef(false)
 
     const [started, setStarted] = useState(false)
     const [examineeName, setExamineeName] = useState('')
@@ -42,10 +47,15 @@ export default function NormalQuiz() {
 				if (!response.ok) throw new Error('Failed to fetch quiz')
 				const quizPayload = await response.json()
 				if (!isCancelled) setQuiz(quizPayload)
+				if (!loadedToastShownRef.current) {
+					addToast('Quiz Loaded Successfuly', 'success', 2000)
+					loadedToastShownRef.current = true
+				}
 			} catch (error: unknown) {
 				if (!isCancelled) {
 					const errorMessage = error instanceof Error ? error.message : 'Error fetching quiz'
 					setError(errorMessage)
+					addToast(errorMessage, 'error')
 				}
 			} finally {
 				if (!isCancelled) setLoading(false)
@@ -55,7 +65,7 @@ export default function NormalQuiz() {
 		return () => {
 			isCancelled = true
 		}
-	}, [setError, setLoading, setQuiz])
+	}, [addToast, setError, setLoading, setQuiz])
 
     // Start/stop elapsed timer
     useEffect(() => {
@@ -86,9 +96,30 @@ export default function NormalQuiz() {
 		return quiz
 	}, [quiz, category])
 
+	function hasAllAnswersFilled(): boolean {
+		if (!filteredQuiz) return false
+		for (const question of filteredQuiz) {
+			const value = answers[question.id]
+			if (question.type === 'text') {
+				if (!String(value ?? '').trim()) return false
+			}
+			if (question.type === 'radio') {
+				if (!(typeof value === 'number' || typeof value === 'string')) return false
+			}
+			if (question.type === 'checkbox') {
+				if (!Array.isArray(value) || value.length === 0) return false
+			}
+		}
+		return true
+	}
+
 	async function onSubmit(event: React.FormEvent) {
 		event.preventDefault()
         if (!filteredQuiz) return
+		if (!hasAllAnswersFilled()) {
+			addToast('Please answer all questions before submitting.', 'error')
+			return
+		}
 		setSubmitting(true)
 		setError(null)
 		// Stop elapsed timer
@@ -115,13 +146,11 @@ export default function NormalQuiz() {
 			if (!response.ok) throw new Error('Failed to grade')
 			const gradeOutcome = await response.json()
 			setResult(gradeOutcome)
+			addToast('Submission successful!', 'success')
 		} catch (error: unknown) {
-			if (error instanceof Error) {
-				const errorMessage = error.name === 'AbortError' ? 'Request timed out' : error.message || 'Error submitting answers'
-				setError(errorMessage)
-			} else {
-				setError('Error submitting answers')
-			}
+			const errorMessage = error instanceof Error ? (error.name === 'AbortError' ? 'Request timed out' : error.message || 'Error submitting answers') : 'Error submitting answers'
+			setError(errorMessage)
+			addToast(errorMessage, 'error')
 		} finally {
 			setSubmitting(false)
 		}
@@ -178,50 +207,22 @@ export default function NormalQuiz() {
 			if (response.ok) {
 				const payload = await response.json()
 				setQuiz(payload)
+				addToast('Quiz reloaded', 'success', 1500)
 			}
 			setStarted(true)
 		} catch (error: unknown) {
 			const errorMessage = error instanceof Error ? error.message : 'Failed to reset quiz'
 			setError(errorMessage)
+			addToast(errorMessage, 'error')
 		}
 	}
 
 	function getUserAnswerText(question: BackendQuestion | undefined): string {
-		if (!question) return 'No answer'
-		const userAnswer = answers[question.id]
-		if (userAnswer === undefined || userAnswer === null || userAnswer === '') return 'No answer'
-		if (question.type === 'text') {
-			return String(userAnswer)
-		}
-		if (question.type === 'radio') {
-			if (typeof userAnswer === 'number') {
-				return question.choices?.[userAnswer] || `Choice ${userAnswer}`
-			}
-			if (typeof userAnswer === 'string') {
-				const index = question.choices?.indexOf(userAnswer)
-				return index !== undefined && index !== -1 && question.choices ? question.choices[index] : userAnswer
-			}
-			return String(userAnswer)
-		}
-		if (question.type === 'checkbox' && Array.isArray(userAnswer)) {
-			if (!question.choices) return userAnswer.join(', ')
-			return userAnswer.map((index: number) => question.choices![index] || `Choice ${index}`).filter(Boolean).join(', ')
-		}
-		return String(userAnswer)
+		return getUserAnswerTextFrom(question, answers)
 	}
 
 	function getCorrectAnswerText(question: BackendQuestion | undefined): string {
-		if (!question) return ''
-		if (question.type === 'text' && question.correctText) {
-			return question.correctText
-		}
-		if (question.type === 'radio' && typeof question.correctIndex === 'number' && question.choices) {
-			return question.choices[question.correctIndex] || ''
-		}
-		if (question.type === 'checkbox' && Array.isArray(question.correctIndexes) && question.choices) {
-			return question.correctIndexes.map((index: number) => question.choices![index]).filter(Boolean).join(', ')
-		}
-		return ''
+		return getCorrectAnswerTextFrom(question)
 	}
 
 	return (
@@ -257,18 +258,24 @@ export default function NormalQuiz() {
                                     }
                                 }}
                             >
-								{CATEGORIES.map((categoryOption) => (
-									<option key={categoryOption} value={categoryOption}>
-										{categoryOption === 'all' ? 'All' : categoryOption === 'react-next' ? 'React + Next' : categoryOption.charAt(0).toUpperCase() + categoryOption.slice(1)}
-									</option>
-								))}
+							{CATEGORIES.map((categoryOption) => (
+								<option key={categoryOption} value={categoryOption}>
+									{categoryOption === 'all' ? 'All' : categoryOption === 'react-next' ? 'React + Next' : categoryOption.charAt(0).toUpperCase() + categoryOption.slice(1)}
+								</option>
+							))}
                             </select>
                         </label>
                         <div className="flex items-center justify-between text-sm text-gray-600">
                             <p>Questions available: {filteredQuiz?.length ?? 0}</p>
                         </div>
                         <button
-                            onClick={() => setStarted(true)}
+                            onClick={() => {
+								if (!examineeName.trim()) {
+									addToast('Please enter your name.', 'error')
+									return
+								}
+								setStarted(true)
+							}}
                             className="rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                             disabled={!examineeName.trim() || (filteredQuiz?.length ?? 0) === 0}
                         >

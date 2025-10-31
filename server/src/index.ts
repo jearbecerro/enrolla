@@ -15,16 +15,6 @@ type Env = EnvBindings
 
 const app = new Hono<{ Bindings: Env }>()
 
-// CORS middleware - allow headers through; validate in next middleware
-app.use(
-	'/*',
-	cors({
-		origin: '*',
-		allowMethods: ['GET', 'POST', 'OPTIONS'],
-		allowHeaders: ['Content-Type', 'Authorization'],
-	})
-)
-
 // Validate CORS origin and return 400 if not allowed (after CORS headers are set)
 app.use('/*', async (context, next) => {
 	const requestOriginHeader = context.req.header('origin')

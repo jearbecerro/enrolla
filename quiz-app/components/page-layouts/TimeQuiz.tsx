@@ -5,6 +5,8 @@ import type { BackendQuestion } from '@enrolla/shared'
 import { useQuizStore } from '@/lib/store'
 import { CATEGORIES, type QuizCategory, SECONDS_PER_QUESTION } from '@enrolla/shared'
 import { API_ENDPOINTS } from '@/lib/api'
+import { useToast } from '@/components/common-ui/Toast'
+import { getUserAnswerTextFrom, getCorrectAnswerTextFrom } from '@/lib/answers.utils'
 
 export default function TimeQuiz() {
 	const {
@@ -22,6 +24,9 @@ export default function TimeQuiz() {
 		setResult,
 		reset,
 	} = useQuizStore()
+
+	const { addToast } = useToast()
+	const loadedToastShownRef = useRef(false)
 
 	const [currentIndex, setCurrentIndex] = useState(0)
 	const [remaining, setRemaining] = useState(SECONDS_PER_QUESTION)
@@ -59,10 +64,15 @@ export default function TimeQuiz() {
 				if (!response.ok) throw new Error('Failed to fetch quiz')
 				const quizPayload = await response.json()
 				if (!isCancelled) setQuiz(quizPayload)
+				if (!loadedToastShownRef.current) {
+					addToast('Quiz Loaded Successfuly', 'success', 2000)
+					loadedToastShownRef.current = true
+				}
 			} catch (error: unknown) {
 				if (!isCancelled) {
 					const errorMessage = error instanceof Error ? error.message : 'Error fetching quiz'
 					setError(errorMessage)
+					addToast(errorMessage, 'error')
 				}
 			} finally {
 				if (!isCancelled) setLoading(false)
@@ -73,7 +83,7 @@ export default function TimeQuiz() {
 			isCancelled = true
 			if (timerRef.current) window.clearInterval(timerRef.current)
 		}
-	}, [reset, setError, setLoading, setQuiz])
+	}, [addToast, reset, setError, setLoading, setQuiz])
 
 	const filteredQuiz = useMemo(() => {
 		if (!quiz) return null
@@ -108,7 +118,6 @@ export default function TimeQuiz() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [currentIndex, total, started])
 
-
 	function next() {
 		if (!filteredQuiz) return
 		if (currentIndex + 1 < filteredQuiz.length) {
@@ -122,8 +131,29 @@ export default function TimeQuiz() {
 		setCurrentIndex((previousIndex) => Math.max(0, previousIndex - 1))
 	}
 
+	function hasAllAnswersFilled(): boolean {
+		if (!filteredQuiz) return false
+		for (const question of filteredQuiz) {
+			const value = answers[question.id]
+			if (question.type === 'text') {
+				if (!String(value ?? '').trim()) return false
+			}
+			if (question.type === 'radio') {
+				if (!(typeof value === 'number' || typeof value === 'string')) return false
+			}
+			if (question.type === 'checkbox') {
+				if (!Array.isArray(value) || value.length === 0) return false
+			}
+		}
+		return true
+	}
+
 	async function submitAll() {
 		if (!filteredQuiz) return
+		if (!hasAllAnswersFilled()) {
+			addToast('Please answer all questions before finishing.', 'error')
+			return
+		}
 		setSubmitting(true)
 		setError(null)
 		// Stop elapsed time
@@ -149,19 +179,17 @@ export default function TimeQuiz() {
 			if (!response.ok) throw new Error('Failed to grade')
 			const gradeOutcome = await response.json()
 			setResult(gradeOutcome)
+			addToast('Submission successful!', 'success')
 		} catch (error: unknown) {
-			if (error instanceof Error) {
-				const errorMessage = error.name === 'AbortError' ? 'Request timed out' : error.message || 'Error submitting answers'
-				setError(errorMessage)
-			} else {
-				setError('Error submitting answers')
-			}
+			const errorMessage = error instanceof Error ? (error.name === 'AbortError' ? 'Request timed out' : error.message || 'Error submitting answers') : 'Error submitting answers'
+			setError(errorMessage)
+			addToast(errorMessage, 'error')
 		} finally {
 			setSubmitting(false)
 		}
 	}
 
-    function renderQuestion() {
+	function renderQuestion() {
 		if (!current) return null
 		return (
 			<div className="rounded border bg-white p-4 shadow-sm">
@@ -220,6 +248,10 @@ export default function TimeQuiz() {
 
 	function startQuiz() {
 		if (!quiz) return
+		if (!examineeName.trim()) {
+			addToast('Please enter your name.', 'error')
+			return
+		}
 		setStarted(true)
 		setCurrentIndex(0)
 		setRemaining(SECONDS_PER_QUESTION)
@@ -246,89 +278,58 @@ export default function TimeQuiz() {
             if (response.ok) {
                 const payload = await response.json()
                 setQuiz(payload)
+                addToast('Quiz reloaded', 'success', 1500)
             }
             setStarted(true)
             setStartedAt(Date.now())
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to reset quiz'
             setError(errorMessage)
+            addToast(errorMessage, 'error')
         }
     }
 
 	function getUserAnswerText(question: BackendQuestion | undefined): string {
-		if (!question) return 'No answer'
-		const userAnswer = answers[question.id]
-		if (userAnswer === undefined || userAnswer === null || userAnswer === '') return 'No answer'
-		if (question.type === 'text') {
-			return String(userAnswer)
-		}
-		if (question.type === 'radio') {
-			if (typeof userAnswer === 'number') {
-				return question.choices?.[userAnswer] || `Choice ${userAnswer}`
-			}
-			if (typeof userAnswer === 'string') {
-				const index = question.choices?.indexOf(userAnswer)
-				return index !== undefined && index !== -1 && question.choices ? question.choices[index] : userAnswer
-			}
-			return String(userAnswer)
-		}
-		if (question.type === 'checkbox' && Array.isArray(userAnswer)) {
-			if (!question.choices) return userAnswer.join(', ')
-			return userAnswer.map((index: number) => question.choices![index] || `Choice ${index}`).filter(Boolean).join(', ')
-		}
-		return String(userAnswer)
+		return getUserAnswerTextFrom(question, answers)
 	}
 
 	function getCorrectAnswerText(question: BackendQuestion | undefined): string {
-		if (!question) return ''
-		if (question.type === 'text' && question.correctText) {
-			return question.correctText
-		}
-		if (question.type === 'radio' && typeof question.correctIndex === 'number' && question.choices) {
-			return question.choices[question.correctIndex] || ''
-		}
-		if (question.type === 'checkbox' && Array.isArray(question.correctIndexes) && question.choices) {
-			return question.correctIndexes.map((index: number) => question.choices![index]).filter(Boolean).join(', ')
-		}
-		return ''
+		return getCorrectAnswerTextFrom(question)
 	}
 
-    function renderQuestionText(text: string) {
-        const parts: JSX.Element[] = []
-        let remainingText = text
-        let partIndex = 0
-        while (true) {
-            const codeBlockStart = remainingText.indexOf('```')
-            if (codeBlockStart === -1) {
-                if (remainingText) parts.push(<span key={`text-${partIndex++}`}>{remainingText}</span>)
-                break
-            }
-            const textBeforeCode = remainingText.slice(0, codeBlockStart)
-            if (textBeforeCode) parts.push(<span key={`text-${partIndex++}`}>{textBeforeCode}</span>)
-            const afterStartMarker = remainingText.slice(codeBlockStart + 3)
-            const codeBlockEnd = afterStartMarker.indexOf('```')
-            if (codeBlockEnd === -1) {
-                parts.push(<span key={`text-${partIndex++}`}>{'```'}{afterStartMarker}</span>)
-                break
-            }
-            let codeContent = afterStartMarker.slice(0, codeBlockEnd)
-            const textAfterCode = afterStartMarker.slice(codeBlockEnd + 3)
-            const languageMarkerIndex = codeContent.indexOf('\n')
-            if (languageMarkerIndex !== -1) {
-                const possibleLanguage = codeContent.slice(0, languageMarkerIndex).trim()
-                if (possibleLanguage.length <= 10) {
-                    codeContent = codeContent.slice(languageMarkerIndex + 1)
-                }
-            }
-            parts.push(
-                <pre key={`code-${partIndex++}`} className="my-2 rounded-md bg-[#1e1e1e] text-gray-100 p-3 overflow-auto text-sm">
-                    <code className="font-mono">{codeContent}</code>
-                </pre>
-            )
-            remainingText = textAfterCode
-        }
-        return <>{parts}</>
-    }
+	function renderQuestionText(text: string) {
+		const parts: JSX.Element[] = []
+		let remainingText = text
+		let partIndex = 0
+		while (true) {
+			const codeBlockStart = remainingText.indexOf('```')
+			if (codeBlockStart === -1) {
+				if (remainingText) parts.push(<span key={`text-${partIndex++}`}>{remainingText}</span>)
+				break
+			}
+			const textBeforeCode = remainingText.slice(0, codeBlockStart)
+			if (textBeforeCode) parts.push(<span key={`text-${partIndex++}`}>{textBeforeCode}</span>)
+			const afterStartMarker = remainingText.slice(codeBlockStart + 3)
+			const codeBlockEnd = afterStartMarker.indexOf('```')
+			if (codeBlockEnd === -1) {
+				parts.push(<span key={`text-${partIndex++}`}>{'```'}{afterStartMarker}</span>)
+				break
+			}
+			let codeContent = afterStartMarker.slice(0, codeBlockEnd)
+			const textAfterCode = afterStartMarker.slice(codeBlockEnd + 3)
+			const languageMarkerIndex = codeContent.indexOf('\n')
+			if (languageMarkerIndex !== -1 && languageMarkerIndex <= 10) {
+				codeContent = codeContent.slice(languageMarkerIndex + 1)
+			}
+			parts.push(
+				<pre key={`code-${partIndex++}`} className="my-2 rounded-md bg-[#1e1e1e] text-gray-100 p-3 overflow-auto text-sm">
+					<code className="font-mono">{codeContent}</code>
+				</pre>
+			)
+			remainingText = textAfterCode
+		}
+		return <>{parts}</>
+	}
 
 	return (
 		<div>
