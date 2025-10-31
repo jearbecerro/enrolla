@@ -422,8 +422,15 @@ export default function TimeQuiz() {
 								Back
 							</button>
 							<button
-								onClick={next}
-								className="rounded bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-700"
+								onClick={() => {
+									if (currentIndex + 1 < total) {
+										next()
+									} else {
+										submitAll()
+									}
+								}}
+								className="rounded bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-700 disabled:opacity-50"
+								disabled={submitting}
 							>
 								{currentIndex + 1 < total ? 'Next' : 'Finish'}
 							</button>
