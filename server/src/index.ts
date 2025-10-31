@@ -9,42 +9,55 @@ import {
 	QUESTION_BANK,
 	type GradeRequest,
 } from '@enrolla/shared'
+import { getAllowedOrigins, type EnvBindings } from './utils'
 
-type Env = {
-	FRONTEND_URL?: string
-}
+type Env = EnvBindings
 
 const app = new Hono<{ Bindings: Env }>()
 
-// Validate CORS origin before processing request
-app.use('/*', async (context, next) => {
-	const requestOrigin = context.req.header('origin')
-	const allowedOrigin = context.env.FRONTEND_URL || 'http://localhost:3000'
-	
-	// Skip CORS check for same-origin requests or OPTIONS preflight
-	if (!requestOrigin || context.req.method === 'OPTIONS') {
-		return next()
-	}
-	
-	// Reject unauthorized origins with 400
-	if (requestOrigin !== allowedOrigin) {
-		return context.json({ error: 'CORS: Origin not allowed' }, 400)
-	}
-	
-	return next()
-})
-
+// CORS middleware - allow headers through; validate in next middleware
 app.use(
 	'/*',
 	cors({
-		origin: (origin, context) => {
-			const allowed = context.env.FRONTEND_URL || 'http://localhost:3000'
-			return origin === allowed ? origin : allowed
-		},
+		origin: '*',
 		allowMethods: ['GET', 'POST', 'OPTIONS'],
 		allowHeaders: ['Content-Type', 'Authorization'],
 	})
 )
+
+// Validate CORS origin and return 400 if not allowed (after CORS headers are set)
+app.use('/*', async (context, next) => {
+	const requestOriginHeader = context.req.header('origin')
+	const allowedOrigins = getAllowedOrigins(context.env)
+
+	if (!requestOriginHeader || context.req.method === 'OPTIONS') {
+		return next()
+	}
+
+	const requested = requestOriginHeader
+
+	if (!allowedOrigins.includes(requested.toLowerCase().replace(/\/$/, ''))) {
+		context.header('Access-Control-Allow-Origin', requestOriginHeader)
+		console.error(
+			`CORS rejection: requested origin "${requested}" not in allowed list [${allowedOrigins.join(', ')}]`,
+		)
+		return context.json(
+			{
+				error: 'CORS: Origin not allowed',
+				details: {
+					requested,
+					allowed: allowedOrigins,
+					hint:
+						"Set ALLOWED_ORIGINS (comma-separated) or FRONTEND_URL in Cloudflare Workers' environment variables",
+				},
+			},
+			400,
+		)
+	}
+
+	context.header('Access-Control-Allow-Origin', requestOriginHeader)
+	return next()
+})
 
 app.get('/', ({ text }) => text('OK'))
 
