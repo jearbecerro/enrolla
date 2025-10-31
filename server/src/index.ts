@@ -16,12 +16,30 @@ type Env = {
 
 const app = new Hono<{ Bindings: Env }>()
 
+// Validate CORS origin before processing request
+app.use('/*', async (context, next) => {
+	const requestOrigin = context.req.header('origin')
+	const allowedOrigin = context.env.FRONTEND_URL || 'http://localhost:3000'
+	
+	// Skip CORS check for same-origin requests or OPTIONS preflight
+	if (!requestOrigin || context.req.method === 'OPTIONS') {
+		return next()
+	}
+	
+	// Reject unauthorized origins with 400
+	if (requestOrigin !== allowedOrigin) {
+		return context.json({ error: 'CORS: Origin not allowed' }, 400)
+	}
+	
+	return next()
+})
+
 app.use(
 	'/*',
 	cors({
-		origin: (origin, c) => {
-			const allowed = c.env.FRONTEND_URL || 'http://localhost:3000'
-			return origin === allowed ? origin : ''  // strict matching
+		origin: (origin, context) => {
+			const allowed = context.env.FRONTEND_URL || 'http://localhost:3000'
+			return origin === allowed ? origin : allowed
 		},
 		allowMethods: ['GET', 'POST', 'OPTIONS'],
 		allowHeaders: ['Content-Type', 'Authorization'],
