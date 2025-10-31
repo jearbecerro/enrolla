@@ -6,7 +6,7 @@ A pnpm workspaces monorepo containing:
 - `shared` – Shared logic, schemas, validator, data, and tests
 
 GitHub (replace with your repo URL after pushing):
-- https://github.com/your-org/enrolla-quiz-app
+- https://github.com/jearbecerro/enrolla.git
 
 ## Quick Start
 

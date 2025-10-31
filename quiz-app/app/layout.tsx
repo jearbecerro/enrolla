@@ -27,10 +27,10 @@ export const metadata: Metadata = {
 		description: 'Timed and normal quizzes with programming and trivia.',
 		images: ['/enrolla_logo.jpg'],
 	},
+	themeColor: '#1d4ed8',
 	viewport: {
 		width: 'device-width',
 		initialScale: 1,
-		themeColor: '#1d4ed8',
 	},
 }
 
