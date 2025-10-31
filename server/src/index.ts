@@ -9,45 +9,26 @@ import {
 	QUESTION_BANK,
 	type GradeRequest,
 } from '@enrolla/shared'
-import { getAllowedOrigins, type EnvBindings } from './utils'
+import { getAllowedOrigins, type EnvBindings, normalizeOrigin } from './utils'
 
 type Env = EnvBindings
 
 const app = new Hono<{ Bindings: Env }>()
 
-// Validate CORS origin and return 400 if not allowed (after CORS headers are set)
-app.use('/*', async (context, next) => {
-	const requestOriginHeader = context.req.header('origin')
-	const allowedOrigins = getAllowedOrigins(context.env)
-
-	if (!requestOriginHeader || context.req.method === 'OPTIONS') {
-		return next()
-	}
-
-	const requested = requestOriginHeader
-
-	if (!allowedOrigins.includes(requested.toLowerCase().replace(/\/$/, ''))) {
-		context.header('Access-Control-Allow-Origin', requestOriginHeader)
-		console.error(
-			`CORS rejection: requested origin "${requested}" not in allowed list [${allowedOrigins.join(', ')}]`,
-		)
-		return context.json(
-			{
-				error: 'CORS: Origin not allowed',
-				details: {
-					requested,
-					allowed: allowedOrigins,
-					hint:
-						"Set ALLOWED_ORIGINS (comma-separated) or FRONTEND_URL in Cloudflare Workers' environment variables",
-				},
-			},
-			400,
-		)
-	}
-
-	context.header('Access-Control-Allow-Origin', requestOriginHeader)
-	return next()
-})
+// Single CORS middleware that validates allowed origins and supports preflight
+app.use(
+	'/*',
+	cors({
+		origin: (origin, context) => {
+			const allowedOrigins = getAllowedOrigins(context.env)
+			if (!origin) return allowedOrigins[0]
+			const requested = normalizeOrigin(origin)
+			return allowedOrigins.includes(requested) ? origin : ''
+		},
+		allowMethods: ['GET', 'POST', 'OPTIONS'],
+		allowHeaders: ['*'],
+	})
+)
 
 app.get('/', ({ text }) => text('OK'))
 

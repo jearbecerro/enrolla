@@ -25,12 +25,23 @@ export function useToast() {
 export function ToastProvider({ children }: { children: React.ReactNode }) {
 	const [toasts, setToasts] = useState<Toast[]>([])
 	const idRef = useRef(1)
+	const lastKeyRef = useRef<string>('')
+	const lastAtRef = useRef<number>(0)
 
 	const removeToast = useCallback((id: number) => {
 		setToasts((prev) => prev.filter((t) => t.id !== id))
 	}, [])
 
 	const addToast = useCallback((message: string, type: ToastType = 'info', durationMs = 3000) => {
+		const now = Date.now()
+		const key = `${type}|${message}`
+		// De-duplicate identical toasts fired close together (e.g., React Strict Mode double effects)
+		if (lastKeyRef.current === key && now - lastAtRef.current < 1500) {
+			return () => {}
+		}
+		lastKeyRef.current = key
+		lastAtRef.current = now
+
 		const id = idRef.current++
 		setToasts((prev) => [...prev, { id, message, type }])
 		const timer = setTimeout(() => removeToast(id), durationMs)

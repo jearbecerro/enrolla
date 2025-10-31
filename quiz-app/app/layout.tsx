@@ -1,5 +1,5 @@
 import './globals.css'
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { ToastProvider } from '@/components/common-ui/Toast'
 
 export const metadata: Metadata = {
@@ -29,10 +29,11 @@ export const metadata: Metadata = {
 		images: ['/enrolla_logo.jpg'],
 	},
 	themeColor: '#1d4ed8',
-	viewport: {
-		width: 'device-width',
-		initialScale: 1,
-	},
+}
+
+export const viewport: Viewport = {
+	width: 'device-width',
+	initialScale: 1,
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

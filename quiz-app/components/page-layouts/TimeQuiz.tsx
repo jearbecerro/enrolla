@@ -38,6 +38,7 @@ export default function TimeQuiz() {
 	const [started, setStarted] = useState(false)
 	const [, setTick] = useState(0)
 	const [expandedQuestions, setExpandedQuestions] = useState<Set<string | number>>(new Set())
+	const [perQuestionRemaining, setPerQuestionRemaining] = useState<Record<string | number, number>>({})
 
 	const elapsedSeconds = finalElapsedSeconds ?? (startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0)
 
@@ -98,18 +99,29 @@ export default function TimeQuiz() {
 	const total = filteredQuiz?.length ?? 0
 	const current = useMemo(() => (filteredQuiz && filteredQuiz[currentIndex]) || null, [filteredQuiz, currentIndex])
 
+	// Manage per-question countdown
 	useEffect(() => {
 		if (!current || !started) return
-		setRemaining(SECONDS_PER_QUESTION)
+		// initialize remaining for this question from map or default
+		const questionId = current.id
+		const initial = perQuestionRemaining[questionId] ?? SECONDS_PER_QUESTION
+		setRemaining(initial)
+
 		if (timerRef.current) window.clearInterval(timerRef.current)
 		timerRef.current = window.setInterval(() => {
 			setRemaining((previousRemaining) => {
-				if (previousRemaining <= 1) {
+				const nextValue = previousRemaining <= 1 ? 0 : previousRemaining - 1
+				setPerQuestionRemaining((prev) => ({ ...prev, [questionId]: nextValue }))
+				if (nextValue === 0) {
 					window.clearInterval(timerRef.current!)
-					next()
-					return 0
+					// auto-advance if time ran out and not already last question
+					if (currentIndex + 1 < (filteredQuiz?.length ?? 0)) {
+						setCurrentIndex((previousIndex) => previousIndex + 1)
+					} else {
+						submitAll()
+					}
 				}
-				return previousRemaining - 1
+				return nextValue
 			})
 		}, 1000)
 		return () => {
@@ -119,15 +131,17 @@ export default function TimeQuiz() {
 	}, [currentIndex, total, started])
 
 	function next() {
-		if (!filteredQuiz) return
+		if (!filteredQuiz || !current) return
+		// persist remaining for current question
+		setPerQuestionRemaining((prev) => ({ ...prev, [current.id]: remaining }))
 		if (currentIndex + 1 < filteredQuiz.length) {
 			setCurrentIndex((previousIndex) => previousIndex + 1)
-		} else {
-			submitAll()
 		}
 	}
 
 	function back() {
+		if (!filteredQuiz || !current) return
+		setPerQuestionRemaining((prev) => ({ ...prev, [current.id]: remaining }))
 		setCurrentIndex((previousIndex) => Math.max(0, previousIndex - 1))
 	}
 
@@ -150,10 +164,6 @@ export default function TimeQuiz() {
 
 	async function submitAll() {
 		if (!filteredQuiz) return
-		if (!hasAllAnswersFilled()) {
-			addToast('Please answer all questions before finishing.', 'error')
-			return
-		}
 		setSubmitting(true)
 		setError(null)
 		// Stop elapsed time
@@ -254,7 +264,7 @@ export default function TimeQuiz() {
 		}
 		setStarted(true)
 		setCurrentIndex(0)
-		setRemaining(SECONDS_PER_QUESTION)
+		setRemaining(perQuestionRemaining[(filteredQuiz?.[0]?.id as string | number) ?? ''] ?? SECONDS_PER_QUESTION)
 		setStartedAt(Date.now())
 	}
 
@@ -274,6 +284,7 @@ export default function TimeQuiz() {
             setRemaining(SECONDS_PER_QUESTION)
             setFinalElapsedSeconds(null)
             setExpandedQuestions(new Set())
+            setPerQuestionRemaining({})
             const response = await fetch(API_ENDPOINTS.quiz, { cache: 'no-store' })
             if (response.ok) {
                 const payload = await response.json()
@@ -309,7 +320,7 @@ export default function TimeQuiz() {
 			}
 			const textBeforeCode = remainingText.slice(0, codeBlockStart)
 			if (textBeforeCode) parts.push(<span key={`text-${partIndex++}`}>{textBeforeCode}</span>)
-			const afterStartMarker = remainingText.slice(codeBlockStart + 3)
+			const afterStartMarker = remainingText.slice(0 + 3 + codeBlockStart)
 			const codeBlockEnd = afterStartMarker.indexOf('```')
 			if (codeBlockEnd === -1) {
 				parts.push(<span key={`text-${partIndex++}`}>{'```'}{afterStartMarker}</span>)
