@@ -16,8 +16,8 @@ describe('logic: gradeAnswers', () => {
 			],
 		}
 		const outcome = gradeAnswers(request as any, QUESTION_BANK)
-		expect(outcome.total).toBe(QUESTION_BANK.length) // Total is all questions in bank
-		expect(outcome.score).toBe(request.answers.length) // Score is number of correct answers submitted
+		expect(outcome.total).toBe(QUESTION_BANK.length)
+		expect(outcome.score).toBe(request.answers.length)
 		expect(outcome.results.every((result) => result.correct)).toBe(true)
 		expect(outcome.results.length).toBe(request.answers.length)
 	})
