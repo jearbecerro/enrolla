@@ -5,7 +5,7 @@ A pnpm workspaces monorepo containing:
 - `server` – Hono backend (Cloudflare Workers compatible; Node dev server)
 - `shared` – Shared logic, schemas, validator, data, and tests
 
-GitHub (replace with your repo URL after pushing):
+GitHub:
 - https://github.com/jearbecerro/enrolla.git
 
 ## Quick Start
