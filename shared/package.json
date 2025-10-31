@@ -1,0 +1,38 @@
+{
+  "name": "@enrolla/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "barrels": "barrelsby --config barrelsby.json",
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "dev": "tsup src/index.ts --format esm --dts --watch",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "test": "jest"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "20.11.30",
+    "barrelsby": "^2.8.1",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.5",
+    "tsup": "8.3.0",
+    "typescript": "5.6.2"
+  }
+}

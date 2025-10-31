@@ -1,0 +1,9 @@
+{
+	"directory": ["src"],
+	"delete": true,
+	"location": "top",
+	"barrelName": "barrel",
+	"structure": "flat",
+	"exclude": ["__mocks__", "\\.test\\.ts$"],
+	"exportDefault": false
+}

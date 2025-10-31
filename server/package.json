@@ -1,0 +1,28 @@
+{
+  "name": "server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "dev:fast": "wrangler dev --local --port 8787 --live-reload=false",
+    "dev:node": "node --enable-source-maps ./dist/dev.js",
+    "deploy": "wrangler deploy",
+    "build": "echo 'Workers are bundled by wrangler'",
+    "build:node": "tsup src/dev.ts --format esm --dts --clean",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "@enrolla/shared": "workspace:*",
+    "hono": "4.6.8",
+    "zod": "3.23.8",
+    "@hono/node-server": "1.13.8"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20251014.0",
+    "prettier": "3.3.3",
+    "typescript": "5.6.2",
+    "wrangler": "^4.45.1",
+    "tsup": "8.3.0"
+  }
+}

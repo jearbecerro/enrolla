@@ -1,0 +1,4 @@
+packages:
+  - "quiz-app"
+  - "server"
+  - "shared"
