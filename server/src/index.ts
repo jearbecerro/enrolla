@@ -16,6 +16,18 @@ type Env = {
 
 const app = new Hono<{ Bindings: Env }>()
 
+app.use(
+	'/*',
+	cors({
+		origin: (origin, c) => {
+			const allowed = c.env.FRONTEND_URL || 'http://localhost:3000'
+			return origin === allowed ? origin : ''  // strict matching
+		},
+		allowMethods: ['GET', 'POST', 'OPTIONS'],
+		allowHeaders: ['Content-Type', 'Authorization'],
+	})
+)
+
 app.get('/', ({ text }) => text('OK'))
 
 app.get('/health', ({ json }) => json({ ok: true }))
