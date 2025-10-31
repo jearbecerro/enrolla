@@ -16,24 +16,6 @@ type Env = {
 
 const app = new Hono<{ Bindings: Env }>()
 
-// Enable CORS - uses env from context via Hono adapter
-app.use('*', async (context, next) => {
-	const { FRONTEND_URL } = context.env
-	const frontendUrl = FRONTEND_URL || 'http://localhost:3000'
-	return cors({
-		origin: frontendUrl,
-		allowMethods: ['GET', 'POST', 'OPTIONS'],
-		allowHeaders: ['Content-Type'],
-	})(context, next)
-})
-
-app.use('*', async ({ req, res }, next) => {
-	const requestStartedAtMs = Date.now()
-	await next()
-	const durationMs = Date.now() - requestStartedAtMs
-	console.log(`${req.method} ${req.path} -> ${res.status} ${durationMs}ms`)
-})
-
 app.get('/', ({ text }) => text('OK'))
 
 app.get('/health', ({ json }) => json({ ok: true }))
